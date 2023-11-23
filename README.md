@@ -30,7 +30,7 @@
 <br />
 <div align="center">
   <a href="https://hermes-sp.eu">
-    <img src="images/logo.png" alt="Logo" width="200" height="100">
+    <img src="images/logo.png" alt="Logo" width="400" height="180">
   </a>
 
   <h3 align="center">HERMES Raw Telemetry Converter</h3>
