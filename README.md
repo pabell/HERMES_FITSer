@@ -57,9 +57,6 @@
   <ol>
     <li>
       <a href="#about-the-project">About The Project</a>
-      <ul>
-        <li><a href="#built-with">Built With</a></li>
-      </ul>
     </li>
     <li>
       <a href="#getting-started">Getting Started</a>
@@ -83,24 +80,6 @@
 ## About 
 
 TBA
-
-<p align="right">(<a href="#readme-top">back to top</a>)</p>
-
-
-
-### Built With
-
-This section list any major frameworks/libraries used in project. 
-
-<!-- * [![Next][Next.js]][Next-url]
-* [![React][React.js]][React-url]
-* [![Vue][Vue.js]][Vue-url]
-* [![Angular][Angular.io]][Angular-url]
-* [![Svelte][Svelte.dev]][Svelte-url]
-* [![Laravel][Laravel.com]][Laravel-url]
-* [![Bootstrap][Bootstrap.com]][Bootstrap-url] -->
-* [![Python][python.org]][Python-url]
-* [![AstroPy][www.astropy.org]][Astropy-url]
 
 <p align="right">(<a href="#readme-top">back to top</a>)</p>
 
@@ -132,14 +111,6 @@ To get a local copy up and running follow these simple example steps.
    ```
 2. Done.
 
-To generate LV0, LV0.5, HK files:
-   ```sh
-   python HERMES_LVO_FITSer.py path/to/the/raw/data/directory
-   ```
-2. To generate SRA files:
-   ```sh
-   python HERMES_SRA_FITSer.py path/to/the/raw/data/directory
-   ```
 
 <p align="right">(<a href="#readme-top">back to top</a>)</p>
 
@@ -167,13 +138,10 @@ _For more examples, please refer to the [Documentation](https://example.com)_
 <!-- ROADMAP -->
 ## Roadmap
 
-- [x] Add Changelog
-- [x] Add back to top links
-- [ ] Add Additional Templates w/ Examples
-- [ ] Add "components" document to easily copy & paste sections of the readme
-- [ ] Multi-language Support
-    - [ ] Chinese
-    - [ ] Spanish
+- [ ] Add Changelog
+- [ ] Add back to top links
+- [ ] Add Additional Documentation
+- [ ] Complete readme
 
 See the [open issues](https://github.com/pabell/HERMES_FITSer/issues) for a full list of proposed features (and known issues).
 
@@ -183,8 +151,6 @@ See the [open issues](https://github.com/pabell/HERMES_FITSer/issues) for a full
 
 <!-- CONTRIBUTING -->
 ## Contributing
-
-Contributions are what make the open source community such an amazing place to learn, inspire, and create. Any contributions you make are **greatly appreciated**.
 
 If you have a suggestion that would make this better, please fork the repo and create a pull request. You can also simply open an issue with the tag "enhancement".
 Don't forget to give the project a star! Thanks again!
