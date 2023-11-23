@@ -488,8 +488,8 @@ def parseRecordData(buf, verbose=False):
         elif (not abt_found) and rej_found:
             # Second record of REJ event (REJ PIXEL EVENT)
 
-            rejMap = record_string[2:]
-            
+            rejMap = record_string[:]
+                    
             if verbose:
                 print("REJ PIXEL EVENT", "with map", rejMap)
             

@@ -179,7 +179,7 @@ Distributed under the MIT License. See `LICENSE.txt` for more information.
 
 Riccardo Campana - riccardo.campana@inaf.it
 
-Project Link: [https://github.com/pabell/repo_name](https://github.com/pabell/repo_name)
+Project Link: [https://github.com/pabell/HERMES_FITSer](https://github.com/pabell/HERMES_FITSer)
 
 <p align="right">(<a href="#readme-top">back to top</a>)</p>
 
