@@ -24,6 +24,6 @@ print("Readout", len(files), "files")
 
     
 writeFITS_LV0d5(outputs, dirname + "_LV0d5.fits", fm="DM", gps_ok=True)
-# writeFITS_HK(outputs, dirname + "_HK.fits", fm="DM")
+writeFITS_HK(outputs, dirname + "_HK.fits", fm="DM")
 writeFITS_LV0(outputs, dirname + "_LV0.fits", fm="DM", gps_ok=True)
 

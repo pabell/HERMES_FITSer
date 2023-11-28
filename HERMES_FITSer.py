@@ -372,15 +372,15 @@ def parseRecordData(buf, verbose=False):
     for i in range(n_records):
         if verbose:
             print("--> Current record", i, "that is", i+1, "of", n_records)
-        
-        # Convert the record bytes in a string with its binary representation       
+
+        # Convert the record bytes in a string with its binary representation               
         record_buf = buf[i*4:i*4+4]
         record_string = ''
         for b in record_buf:
             record_string += f'{b:0>8b}'
         if verbose:
             print(record_string)
-        
+            
         # Check that we are not in the next record after a first ABT/REJ record
         if (not abt_found) and (not rej_found):
             # Time event
@@ -408,17 +408,16 @@ def parseRecordData(buf, verbose=False):
                 
             # Pixel event    
             elif record_string[:1] == '0':
-                    
-                # Quadrant     
+                
+                # Quadrant ID
                 asicID = int(record_string[1:3], base=2)
                 # LYRA-BE channel value
                 channel = int(record_string[3:8], base=2)
                 
-                
                 # Time mark should be checked for consistency with the TIME event!
                 time_mark_lsb = record_string[8:12]
                 if time_mark_lsb != time_mark_lsb_timeEvt:
-                    print("*** WARNING: Time mark LSB mismatch! ***")
+                    print("WARNING: Time mark LSB mismatch!")
                     
                 trigger = int(record_string[15:16])
                 adc = int(record_string[16:], base=2) 
@@ -437,11 +436,11 @@ def parseRecordData(buf, verbose=False):
             elif record_string[:3] == '111':
                 abt_found = True
                 obt_s = int(record_string[3:], base=2)
+                abtCounter += 1
 
                 if verbose:
-                    print("ABT EVENT PART 1", "with OBT", obt_S)
-
-                abtCounter += 1
+                    print("ABT EVENT PART 1", "with OBT", obt_s)
+                
                 
             # First record of REJ event (REJ TIME EVENT)
             elif record_string[:3] == '100':
@@ -462,20 +461,17 @@ def parseRecordData(buf, verbose=False):
                 print("ABT EVENT RECORD PART 2")
 
             obt_ns = int(record_string[7:], base=2)
-            
-            # Create pixel event corresponding to the ABT
-            abt = PixelEvent(4, obt_s=obt_s, obt_ns=obt_ns)
 
+            abt = PixelEvent(0, obt_s=obt_s, obt_ns=obt_ns)
+            
             if event is not None:
                 # If an event object already exists, add the ABT to its pixel event list
                 event.addPixelEvent(abt)
                 
-                # Debug code
                 # print("len(event.pixelEvents)", len(event.pixelEvents))
                 # print("event.time_mark", event.time_mark)
                 # for x in event.pixelEvents:
                 #     print("event.pixelEvent", x.evtype, x.asicID, x.channel, x.adc, x.obt_s, x.obt_ns)
-                # print("Current record is",i)
                 
             else:
                 # Create a fake event (timemark 0, multiplicity 0) to handle buffers starting with an ABT record
@@ -484,29 +480,29 @@ def parseRecordData(buf, verbose=False):
                 print("FAKE EVENT CREATED -- Apparently the buffer starts with an ABT.")
             abt_found = False
             
-        # In case we are at the second record of a REJ event    
+        # In case we are at the second record of a REJ event        
         elif (not abt_found) and rej_found:
             # Second record of REJ event (REJ PIXEL EVENT)
 
-            rejMap = record_string[:]
-                    
+            rej = record_string[:]
+            
             if verbose:
                 print("REJ PIXEL EVENT", "with map", rejMap)
-            
+
             if event is not None:
                 # If an event object already exists (should always be the case), assign the Rejected Events map to its corresponding member
-                event.addRejectedMap(rejMap)
+                event.addRejectedMap(rej)
             else:
                 # This should not happen.
                 print("*** ERROR! REJECTED PIXEL EVENT WITHOUT PRIOR REJECTED TIME EVENT!")
-                
+
             rej_found = False
-            rejCounter +=1
+            rejCounter += 1
         
         else:
             # This should not happen.
-                print("*** ERROR! UNKNOWN STATE!")
-                
+            print("*** ERROR! UNKNOWN STATE!")
+        
         # If we are at the end of the record list, flush everything.        
         if (event is not None) and (i == n_records-1):
             eventBuffer.append(event)
@@ -1408,6 +1404,7 @@ def writeFITS_LV0(packets_readout, outputfilename, write_packets_extension=True,
                             # print(obt_nsec_difference)
                             # print(obt_read_from_abtEvt_previous)
                             # print(obt_nsec_difference_previous)
+                            
                         else:
                             obt_read_from_abtEvt           = np.zeros(4)
                             obt_nsec_difference            = np.zeros(4)
@@ -1426,8 +1423,8 @@ def writeFITS_LV0(packets_readout, outputfilename, write_packets_extension=True,
 
                         asicid = m
                         isThereAnABT = False
-                        for n, entry in enumerate(event.pixelEvents):                    
-                            if entry.evtype == 0: 
+                        for n, entry in enumerate(event.pixelEvents):      
+                            if entry.evtype == 0:                         
                                 # There is an ABT event in the pixelEvents buffer
                                 # Let's append it LAST to the final array
                                 # since the ABT would be reset for the next PIXEL events
@@ -1453,21 +1450,21 @@ def writeFITS_LV0(packets_readout, outputfilename, write_packets_extension=True,
                                 abt_event_nmult = 0
                                 abt_event_channel = []
                                 abt_event_adc = []
-                        
+                                                
                             else: 
                                 # Loop on the pixelEvents array
                                 # Pixel event, pack multiplicity
                                 pixel_event_channel.append(entry.channel)
                                 pixel_event_adc.append(entry.adc)
                                 asicid = entry.asicID
-                    
+                
                         events_packetID.append(i)
                         events_bufferID.append(j)
                         events_evtID.append(m)
                         events_obts.append(obt_read_from_abtEvt_previous[asicid])
                         events_obtns.append(obt_nsec_difference_previous[asicid])
                         events_time_mark.append(event.time_mark)
-                
+            
                         time_of_event = (event.time_mark - obt_nsec_difference_previous[asicid])*1e-7 \
                                         + obt_read_from_abtEvt_previous[asicid]
                         events_time.append(time_of_event)
@@ -1484,7 +1481,7 @@ def writeFITS_LV0(packets_readout, outputfilename, write_packets_extension=True,
                         events_nmult.append(event.multiplicity)
                         events_channel.append(pixel_event_channel)
                         events_adc.append(pixel_event_adc)
-                
+            
                         if isThereAnABT:
                             # Now we can append also the ABT event
                             events_packetID.append(abt_event_packetID)
@@ -1499,9 +1496,10 @@ def writeFITS_LV0(packets_readout, outputfilename, write_packets_extension=True,
                             events_nmult.append(abt_event_nmult)
                             events_channel.append(abt_event_channel)
                             events_adc.append(abt_event_adc)
-                    
+                
                             obt_read_from_abtEvt_previous[asicid] = obt_read_from_abtEvt[asicid]
                             obt_nsec_difference_previous[asicid] = obt_nsec_difference[asicid]
+                            
                             
                     elif mult == -1:
                         # REJECTED events

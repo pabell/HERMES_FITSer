@@ -139,9 +139,11 @@ _For more examples, please refer to the [Documentation](https://example.com)_
 ## Roadmap
 
 - [ ] Add Changelog
-- [ ] Add back to top links
+- [X] Add back to top links
 - [ ] Add Additional Documentation
 - [ ] Complete readme
+- [ ] Adapt to concatenated file format
+- [ ] Adapt to official archive format 
 
 See the [open issues](https://github.com/pabell/HERMES_FITSer/issues) for a full list of proposed features (and known issues).
 
