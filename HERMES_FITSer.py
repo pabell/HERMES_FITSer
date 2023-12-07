@@ -512,7 +512,7 @@ def parseRecordData(buf, verbose=False):
     return eventBuffer, (timeCounter, pixelCounter, abtCounter, rejCounter)
     
 
-def ingest_buffer(filein, verbose=True):
+def ingest_buffer(filein, verbose=True, aggregated=False):
     """
     Ingests a PDHU buffer file.
     Returns the Header and Event Data arrays found for each quadrant,
@@ -545,6 +545,10 @@ def ingest_buffer(filein, verbose=True):
     filesize = os.path.getsize(filein)
     
     header_size = 128
+    aggHeader_size = 25
+    
+    if aggregated:
+        print("*** PARSING AGGREGATED FILES ***")
     
     try:
         assert filesize > header_size
@@ -559,22 +563,50 @@ def ingest_buffer(filein, verbose=True):
     f = open(filein, "rb")
     
     endOfFileReached = False
-    
     output_buffer = None
-    
+
     while(not endOfFileReached):
         # Flush the output
         if output_buffer is not None:
             output.append(output_buffer)
         output_buffer = []
-        
+    
+        if aggregated:
+            # If the file has been aggregated with headers
+            # parse skipping the headers
+            # Parse the aggregated header
+            my_bytes = f.read(aggHeader_size)
+            print("Parsed aggregated header.")
+            
+            for b in my_bytes:
+                print(hex(b), int(b), chr(b))
+            
+            print(my_bytes)
+            
+            # Aggregated header structure:
+            # 8 byte: filename string
+            # 1 byte: "-"
+            # 8 byte: filesize (u32_FileSize)
+            # 1 byte: " " (empty char)
+            # 1 byte:"B"
+            agg_filename = str(struct.unpack('13s', my_bytes[0:13])[0])
+            #agg_hypen    = struct.unpack('1s', my_bytes[14])[0]
+            agg_filesize = struct.unpack('8s', my_bytes[15:23])[0]
+            #agg_control  = struct.unpack('c', my_bytes[18])[0]
+            print("*** Aggregated header ***")
+            print("\t Filename", agg_filename)
+            print("\t Hypen", my_bytes[14])
+            print("\t Filesize", agg_filesize)
+            # print("\t Control", agg_control)
+            
+    
         # Parse the header
         my_bytes = f.read(header_size)
         print("Parsed an header.")
-    
+
         # Unpack the header
         header = Header(my_bytes)
-        
+    
         if verbose:
             # Print header info
             header.printGPSTime()
@@ -585,32 +617,32 @@ def ingest_buffer(filein, verbose=True):
             print("Record counter quadrant B: \t\t", header.recordCounter1)
             print("Record counter quadrant C: \t\t", header.recordCounter2)
             print("Record counter quadrant D: \t\t", header.recordCounter3)
-    
+
         # Parse the event data.
         # Fetch the next sum_i(4*header.recordCounter_i) bytes
         # If there is only one quadrant buffer, this is down to the end of file!
         # There are at maximum 4 quadrants, so we check if we are at the end of file 
         # before iterating next to header + record_list.
         counters = [header.recordCounter0, header.recordCounter1, header.recordCounter2, header.recordCounter3]
-        
+    
         assert len(counters) == 4
-        
+    
         for asicid, quadrant in enumerate(counters):
             print("Reading quadrant", asicid, "with", counters[asicid], "records...")
-            
+        
             if counters[asicid] > 0:
                 # If the expected number of records is greater than zero,
                 # read out 4 bytes for each record
                 record_list_bytes = 4*counters[asicid]
                 my_bytes = f.read(record_list_bytes)
-            
+        
                 # Unpack the event data buffer
                 eventBuffer, (timeCounter, pixelCounter, abtCounter, rejCounter) = parseRecordData(my_bytes)
                 header.ASIC_ID = asicid
-            
+        
                 # Add to the output the (header, event_data) tuple read out just now 
                 output_buffer.append((header, eventBuffer))
-                            
+                        
                 # Debug code                
                 # print(  "Triggers: ", header.BEE_HK["TriggerCounter"][asicid], \
                 #         "Events: ", header.BEE_HK["EventCounter"][asicid], \
@@ -628,7 +660,7 @@ def ingest_buffer(filein, verbose=True):
             else:
                 print("Flushing quadrants with zero counts...")
                 output_buffer.append((header, []))
-        
+    
         if f.tell() == filesize:
             print("End of file reached.\n\n")
             # Final flush
@@ -1797,7 +1829,10 @@ def writeFITS_LV0(packets_readout, outputfilename, write_packets_extension=True,
     gtihdu.header.set('EXPOSURE', exposure,  'Exposure time')
     gtihdu.header.set('DATE-OBS', tref.fits,  'Start date of observations')
     gtihdu.header.set('DATE-END', tstop.fits,  'End date of observations')
-
+    gtihdu.header.set('HDUCLASS', 'OGIP',  'End date of observations')
+    gtihdu.header.set('HDUCLAS1', 'GTI',  'File contains Good Time Intervals')
+    gtihdu.header.set('HDUCLAS2', 'STANDARD',  'File contains Good Time Intervals')
+    gtihdu.header.set('HDUNAME', 'GTI',  'ASCDM block name')
 
 
     if len(rejected_packetID) > 0:
