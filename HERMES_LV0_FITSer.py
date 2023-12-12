@@ -10,9 +10,9 @@ outputs = []
 
 # Options
 # TODO: pass them as command-line arguments?
-fm = "FM2"
+fm = "DM"
 gps_ok = True
-aggregated = True
+aggregated = False
 
 # Get the list of files contained in the directory, ordered by their hex value 
 # (filename is the hex representation of the UNIX timestamp of the buffer)
@@ -33,6 +33,6 @@ print("Readout", len(files), "files")
     
 # Create FITS files    
 writeFITS_LV0d5(outputs, dirname + "_LV0d5.fits", fm=fm, gps_ok=gps_ok)
-writeFITS_HK(outputs, dirname + "_HK.fits", fm=fm)
-writeFITS_LV0(outputs, dirname + "_LV0.fits", fm=fm, gps_ok=gps_ok)
+obsdates = writeFITS_LV0(outputs, dirname + "_LV0.fits", fm=fm, gps_ok=gps_ok)
+writeFITS_HK(outputs, dirname + "_HK.fits", fm=fm, gps_ok=gps_ok, obsdates=obsdates)
 

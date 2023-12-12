@@ -1078,8 +1078,8 @@ def writeFITS_LV0d5(packets_readout, outputfilename, write_packets_extension=Tru
         # print(gps_offset[0], utc_offset[0], week_sec[0], week_num[0])
         # Convert in MET: the GPS time at MET reference time is 1325030381.0 
         met_offset = gps_time_ref - 1325030381.0 
+        print()
         print("MET of the observation start", met_offset)
-        
     else:
         met_offset = 0
     # Add to events_time
@@ -1255,8 +1255,6 @@ def writeFITS_LV0d5(packets_readout, outputfilename, write_packets_extension=Tru
     else:
         hdulist = pyfits.HDUList([prhdu, t2hdu])
     hdulist.writeto(outputfilename, overwrite=True)
-    
-    
     
     
     
@@ -1585,6 +1583,20 @@ def writeFITS_LV0(packets_readout, outputfilename, write_packets_extension=True,
     exposure = np.max(events_time)-np.min(events_time)
     
     mask_fake_events = np.logical_or(np.array(events_nmult) > 0, np.array(events_evtype) == 0)
+    
+    tref = Time(59580+0.00080074074, format='mjd')
+    tstop = Time(59580+0.00080074074+exposure/86400, format='mjd')
+    if write_packets_extension and gps_ok:
+        start_date = Time(gps_time_ref, format='gps')
+        stop_date = Time(gps_time_ref+exposure, format='gps')
+    else:
+        start_date = tref
+        stop_date = tstop
+    print()
+    print("Observation start:\t", start_date.iso)
+    print("Observation stop:\t", stop_date.iso)
+    print("Exposure:\t\t", exposure, "s")
+    
         
     # Extensions
     if write_packets_extension:
@@ -1749,11 +1761,7 @@ def writeFITS_LV0(packets_readout, outputfilename, write_packets_extension=True,
     # Write FITS file
     # "Null" primary array
     prhdu = pyfits.PrimaryHDU()
-
-    print("Exposure", exposure)
-    tref = Time(59580+0.00080074074, format='mjd')
-    tstop = Time(59580+0.00080074074+exposure/86400, format='mjd')
-    
+        
     prhdu.header.set('TELESCOP', 'HERMES',  'Telescope name')
     prhdu.header.set('INSTRUME', fm,  'Instrument name')
     
@@ -1763,14 +1771,13 @@ def writeFITS_LV0(packets_readout, outputfilename, write_packets_extension=True,
     prhdu.header.set('MJDREFI', 59580,  'MJD reference day 01 Jan 2022 00:00:00 UTC')
     prhdu.header.set('MJDREFF', 0.00080074074,  'MJD reference (fraction part: 32.184 secs + 37')
     prhdu.header.set('CLOCKAPP', False,  'Set to TRUE if correction has been applied to t')
-    
-    prhdu.header.set('TSTART', 0,  'Start: Elapsed secs since HERMES epoch')
-    prhdu.header.set('TSTOP', exposure,  'Stop: Elapsed secs since HERMES epoch')
+    prhdu.header.set('TSTART', np.min(events_time),  'Start: Elapsed secs since HERMES epoch')
+    prhdu.header.set('TSTOP', np.max(events_time),  'Stop: Elapsed secs since HERMES epoch')
     prhdu.header.set('TELAPSE', exposure,  'TSTOP-TSTART')
     prhdu.header.set('ONTIME', exposure,  'Sum of GTIs')
     prhdu.header.set('EXPOSURE', exposure,  'Exposure time')
-    prhdu.header.set('DATE-OBS', tref.fits,  'Start date of observations')
-    prhdu.header.set('DATE-END', tstop.fits,  'End date of observations')
+    prhdu.header.set('DATE-OBS', start_date.fits,  'Start date of observations')
+    prhdu.header.set('DATE-END', stop_date.fits,  'End date of observations')
     
     
     if write_packets_extension:
@@ -1786,13 +1793,13 @@ def writeFITS_LV0(packets_readout, outputfilename, write_packets_extension=True,
         pkthdu.header.set('MJDREFF', 0.00080074074,  'MJD reference (fraction part: 32.184 secs + 37')
         pkthdu.header.set('CLOCKAPP', False,  'Set to TRUE if correction has been applied to t')
         pkthdu.header.set('EXPOSURE', exposure,  'Exposure time')
-        pkthdu.header.set('TSTART', 0,  'Start: Elapsed secs since HERMES epoch')
-        pkthdu.header.set('TSTOP', exposure,  'Stop: Elapsed secs since HERMES epoch')
+        pkthdu.header.set('TSTART', np.min(events_time),  'Start: Elapsed secs since HERMES epoch')
+        pkthdu.header.set('TSTOP', np.max(events_time),  'Stop: Elapsed secs since HERMES epoch')
         pkthdu.header.set('TELAPSE', exposure,  'TSTOP-TSTART')
         pkthdu.header.set('ONTIME', exposure,  'Sum of GTIs')
         pkthdu.header.set('EXPOSURE', exposure,  'Exposure time')
-        pkthdu.header.set('DATE-OBS', tref.fits,  'Start date of observations')
-        pkthdu.header.set('DATE-END', tstop.fits,  'End date of observations')
+        pkthdu.header.set('DATE-OBS', start_date.fits,  'Start date of observations')
+        pkthdu.header.set('DATE-END', stop_date.fits,  'End date of observations')
             
 
     evthdu.header.set('EXTNAME', 'EVENTS',  'Name of this binary table extension')
@@ -1805,13 +1812,13 @@ def writeFITS_LV0(packets_readout, outputfilename, write_packets_extension=True,
     evthdu.header.set('MJDREFI', 59580,  'MJD reference day 01 Jan 2022 00:00:00 UTC')
     evthdu.header.set('MJDREFF', 0.00080074074,  'MJD reference (fraction part: 32.184 secs + 37')
     evthdu.header.set('CLOCKAPP', False,  'Set to TRUE if correction has been applied to t')
-    evthdu.header.set('TSTART', 0,  'Start: Elapsed secs since HERMES epoch')
-    evthdu.header.set('TSTOP', exposure,  'Stop: Elapsed secs since HERMES epoch')
+    evthdu.header.set('TSTART', np.min(events_time),  'Start: Elapsed secs since HERMES epoch')
+    evthdu.header.set('TSTOP', np.max(events_time),  'Stop: Elapsed secs since HERMES epoch')
     evthdu.header.set('TELAPSE', exposure,  'TSTOP-TSTART')
     evthdu.header.set('ONTIME', exposure,  'Sum of GTIs')
     evthdu.header.set('EXPOSURE', exposure,  'Exposure time')
-    evthdu.header.set('DATE-OBS', tref.fits,  'Start date of observations')
-    evthdu.header.set('DATE-END', tstop.fits,  'End date of observations')
+    evthdu.header.set('DATE-OBS', start_date.fits,  'Start date of observations')
+    evthdu.header.set('DATE-END', stop_date.fits,  'End date of observations')
 
     gtihdu.header.set('EXTNAME', 'GTI',  'Name of this binary table extension')
     gtihdu.header.set('TELESCOP', 'HERMES',  'Telescope name')
@@ -1822,13 +1829,13 @@ def writeFITS_LV0(packets_readout, outputfilename, write_packets_extension=True,
     gtihdu.header.set('MJDREFI', 59580,  'MJD reference day 01 Jan 2022 00:00:00 UTC')
     gtihdu.header.set('MJDREFF', 0.00080074074,  'MJD reference (fraction part: 32.184 secs + 37')
     gtihdu.header.set('CLOCKAPP', False,  'Set to TRUE if correction has been applied to t')
-    gtihdu.header.set('TSTART', 0,  'Start: Elapsed secs since HERMES epoch')
-    gtihdu.header.set('TSTOP', exposure,  'Stop: Elapsed secs since HERMES epoch')
+    gtihdu.header.set('TSTART', np.min(events_time),  'Start: Elapsed secs since HERMES epoch')
+    gtihdu.header.set('TSTOP', np.max(events_time),  'Stop: Elapsed secs since HERMES epoch')
     gtihdu.header.set('TELAPSE', exposure,  'TSTOP-TSTART')
     gtihdu.header.set('ONTIME', exposure,  'Sum of GTIs')
     gtihdu.header.set('EXPOSURE', exposure,  'Exposure time')
-    gtihdu.header.set('DATE-OBS', tref.fits,  'Start date of observations')
-    gtihdu.header.set('DATE-END', tstop.fits,  'End date of observations')
+    gtihdu.header.set('DATE-OBS', start_date.fits,  'Start date of observations')
+    gtihdu.header.set('DATE-END', stop_date.fits,  'End date of observations')
     gtihdu.header.set('HDUCLASS', 'OGIP',  'End date of observations')
     gtihdu.header.set('HDUCLAS1', 'GTI',  'File contains Good Time Intervals')
     gtihdu.header.set('HDUCLAS2', 'STANDARD',  'File contains Good Time Intervals')
@@ -1845,13 +1852,13 @@ def writeFITS_LV0(packets_readout, outputfilename, write_packets_extension=True,
         rejhdu.header.set('MJDREFI', 59580,  'MJD reference day 01 Jan 2022 00:00:00 UTC')
         rejhdu.header.set('MJDREFF', 0.00080074074,  'MJD reference (fraction part: 32.184 secs + 37')
         rejhdu.header.set('CLOCKAPP', False,  'Set to TRUE if correction has been applied to t')
-        rejhdu.header.set('TSTART', 0,  'Start: Elapsed secs since HERMES epoch')
-        rejhdu.header.set('TSTOP', exposure,  'Stop: Elapsed secs since HERMES epoch')
+        rejhdu.header.set('TSTART', np.min(events_time),  'Start: Elapsed secs since HERMES epoch')
+        rejhdu.header.set('TSTOP', np.max(events_time),  'Stop: Elapsed secs since HERMES epoch')
         rejhdu.header.set('TELAPSE', exposure,  'TSTOP-TSTART')
         rejhdu.header.set('ONTIME', exposure,  'Sum of GTIs')
         rejhdu.header.set('EXPOSURE', exposure,  'Exposure time')
-        rejhdu.header.set('DATE-OBS', tref.fits,  'Start date of observations')
-        rejhdu.header.set('DATE-END', tstop.fits,  'End date of observations')
+        rejhdu.header.set('DATE-OBS', start_date.fits,  'Start date of observations')
+        rejhdu.header.set('DATE-END', stop_date.fits,  'End date of observations')
         
         if write_packets_extension:
             hdulist = pyfits.HDUList([prhdu, pkthdu, evthdu, gtihdu, rejhdu])
@@ -1865,9 +1872,10 @@ def writeFITS_LV0(packets_readout, outputfilename, write_packets_extension=True,
             hdulist = pyfits.HDUList([prhdu, evthdu, gtihdu])
             
     hdulist.writeto(outputfilename, overwrite=True, checksum=True)
+    return start_date, stop_date
 
 
-def writeFITS_HK(packets_readout, outputfilename, gps_ok=False, fm="FM2"):
+def writeFITS_HK(packets_readout, outputfilename, gps_ok=False, fm="FM2", obsdates=None):
     """
     Write HERMES housekeepings FITS file
     """
@@ -2004,8 +2012,6 @@ def writeFITS_HK(packets_readout, outputfilename, gps_ok=False, fm="FM2"):
     # Extensions
     sel_single_pkt = range(n_buffers)
     
-    # TODO: Test conversion of GPS time in MET
-
     # Zero-align times
     obt_s = obt_s[sel_single_pkt]-obt_s[0]
     
@@ -2077,10 +2083,19 @@ def writeFITS_HK(packets_readout, outputfilename, gps_ok=False, fm="FM2"):
     # "Null" primary array
     prhdu = pyfits.PrimaryHDU()
     
-    # TODO: check and test
-    exposure = np.max(obt_s)-np.min(obt_s)
-    tref = Time(59580+0.00080074074 + met_offset, format='mjd')
-    tstop = Time(59580+0.00080074074+exposure/86400 + met_offset, format='mjd')
+    if obsdates is None:
+        if gps_ok:
+            start_date = Time(np.min(obt_s), format='gps')
+            stop_date = Time(np.min(obt_s)+exposure, format='gps')
+        else:
+            start_date = Time(59580+0.00080074074, format='mjd')
+            stop_date = Time(59580+0.00080074074+exposure/86400, format='mjd')
+    else:
+        start_date, stop_date = obsdates
+    tstart = (start_date.mjd - (59580+0.00080074074))*86400
+    tstop = (stop_date.mjd - (59580+0.00080074074))*86400
+        
+    exposure = tstop-tstart
     
     prhdu.header.set('TELESCOP', 'HERMES',  'Telescope name')
     prhdu.header.set('INSTRUME', fm,  'Instrument name')
@@ -2090,10 +2105,13 @@ def writeFITS_HK(packets_readout, outputfilename, gps_ok=False, fm="FM2"):
     prhdu.header.set('MJDREFI', 59580,  'MJD reference day 01 Jan 2022 00:00:00 UTC')
     prhdu.header.set('MJDREFF', 0.00080074074,  'MJD reference (fraction part: 32.184 secs + 37')
     prhdu.header.set('CLOCKAPP', False,  'Set to TRUE if correction has been applied to t')
+    prhdu.header.set('TSTART', tstart,  'Start: Elapsed secs since HERMES epoch')
+    prhdu.header.set('TSTOP', tstop,  'Stop: Elapsed secs since HERMES epoch')
     prhdu.header.set('TELAPSE', exposure,  'TSTOP-TSTART')
+    prhdu.header.set('ONTIME', exposure,  'Sum of GTIs')
     prhdu.header.set('EXPOSURE', exposure,  'Exposure time')
-    prhdu.header.set('DATE-OBS', tref.fits,  'Start date of observations')
-    prhdu.header.set('DATE-END', tstop.fits,  'End date of observations')
+    prhdu.header.set('DATE-OBS', start_date.fits,  'Start date of observations')
+    prhdu.header.set('DATE-END', stop_date.fits,  'End date of observations')
     
     
     t1hdu.header.set('EXTNAME', 'HK',  'Name of this binary table extension')
@@ -2105,12 +2123,13 @@ def writeFITS_HK(packets_readout, outputfilename, gps_ok=False, fm="FM2"):
     t1hdu.header.set('MJDREFI', 59580,  'MJD reference day 01 Jan 2022 00:00:00 UTC')
     t1hdu.header.set('MJDREFF', 0.00080074074,  'MJD reference (fraction part: 32.184 secs + 37')
     t1hdu.header.set('CLOCKAPP', 'F',  'Set to TRUE if correction has been applied to t')
-    t1hdu.header.set('EXPOSURE', exposure,  'Exposure time')
-    t1hdu.header.set('TSTART', 0,  'Start: Elapsed secs since HERMES epoch')
-    t1hdu.header.set('TSTOP', exposure,  'Stop: Elapsed secs since HERMES epoch')
+    t1hdu.header.set('TSTART', tstart,  'Start: Elapsed secs since HERMES epoch')
+    t1hdu.header.set('TSTOP', tstop,  'Stop: Elapsed secs since HERMES epoch')
     t1hdu.header.set('TELAPSE', exposure,  'TSTOP-TSTART')
-    t1hdu.header.set('DATE-OBS', tref.fits,  'Start date of observations')
-    t1hdu.header.set('DATE-END', tstop.fits,  'End date of observations')
+    t1hdu.header.set('ONTIME', exposure,  'Sum of GTIs')
+    t1hdu.header.set('EXPOSURE', exposure,  'Exposure time')
+    t1hdu.header.set('DATE-OBS', start_date.fits,  'Start date of observations')
+    t1hdu.header.set('DATE-END', stop_date.fits,  'End date of observations')
     
     hdulist = pyfits.HDUList([prhdu, t1hdu])
     hdulist.writeto(outputfilename, overwrite=True, checksum=True)
