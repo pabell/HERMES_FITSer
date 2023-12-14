@@ -367,6 +367,8 @@ def parseRecordData(buf, verbose=False):
     rej_found = False
     obt_s = None
     
+    asicID = 0
+    
     flushEmptyEvent = False
     
     for i in range(n_records):
@@ -462,7 +464,7 @@ def parseRecordData(buf, verbose=False):
 
             obt_ns = int(record_string[7:], base=2)
 
-            abt = PixelEvent(0, obt_s=obt_s, obt_ns=obt_ns)
+            abt = PixelEvent(0, obt_s=obt_s, obt_ns=obt_ns, asicID=asicID)
             
             if event is not None:
                 # If an event object already exists, add the ABT to its pixel event list
@@ -888,7 +890,8 @@ def writeFITS_LV0d5(packets_readout, outputfilename, write_packets_extension=Tru
     events_evtype       = []
     events_obts         = []
     events_obterr       = []
-    events_time         = []
+    events_time_mark    = []
+    # events_time         = []
     events_quadid       = []
     events_nmult        = []
     events_channel      = []
@@ -975,9 +978,9 @@ def writeFITS_LV0d5(packets_readout, outputfilename, write_packets_extension=Tru
                             # obt_nsec_difference[header.ASIC_ID] = 9999999 - header.BEE_HK["ABT_CNT"]
                             # obt_read_from_abtEvt_previous[header.ASIC_ID] = header.BEE_HK["ABT_OBT"]
                             # obt_nsec_difference_previous[header.ASIC_ID] = 9999999 - header.BEE_HK["ABT_CNT"]
-                            obt_read_from_abtEvt           = np.ones(4) * header.BEE_HK["ABT_OBT"] + 1
+                            obt_read_from_abtEvt           = np.ones(4) * header.BEE_HK["ABT_OBT"] #+ 1
                             obt_nsec_difference            = np.ones(4) * (9999999 - header.BEE_HK["ABT_CNT"])
-                            obt_read_from_abtEvt_previous  = np.ones(4) * header.BEE_HK["ABT_OBT"] + 1
+                            obt_read_from_abtEvt_previous  = np.ones(4) * header.BEE_HK["ABT_OBT"] #+ 1
                             obt_nsec_difference_previous   = np.ones(4) * (9999999 - header.BEE_HK["ABT_CNT"])
                             # print(obt_read_from_abtEvt)
                             # print(obt_nsec_difference)
@@ -1032,9 +1035,10 @@ def writeFITS_LV0d5(packets_readout, outputfilename, write_packets_extension=Tru
                              events_evtype.append(1)
                         events_obts.append(obt_read_from_abtEvt_previous[asicid])
                         events_obterr.append(obt_nsec_difference_previous[asicid])
-                        time_of_event = (event.time_mark - obt_nsec_difference_previous[asicid])*1e-7 \
-                                        + obt_read_from_abtEvt_previous[asicid]
-                        events_time.append(time_of_event)
+                        # time_of_event = (event.time_mark - obt_nsec_difference_previous[asicid])*1e-7 \
+                        #                 + obt_read_from_abtEvt_previous[asicid]
+                        # events_time.append(time_of_event)
+                        events_time_mark.append(event.time_mark)
                         events_quadid.append(asicid)
                         events_nmult.append(event.multiplicity)
 
@@ -1055,18 +1059,27 @@ def writeFITS_LV0d5(packets_readout, outputfilename, write_packets_extension=Tru
                             obt_read_from_abtEvt_previous[asicid] = obt_read_from_abtEvt[asicid]
                             obt_nsec_difference_previous[asicid] = obt_nsec_difference[asicid]
 
-    events_time = np.array(events_time)
+    events_time_mark = np.array(events_time_mark)
+    events_obts      = np.array(events_obts)
+    events_obterr    = np.array(events_obterr)
+    events_evtype    = np.array(events_evtype)
+    
+    # Event time array (aligned to OBT)
+    events_time = (events_time_mark - events_obterr)*1e-7 + events_obts
+    # Correct time value for ABT events
+    events_time[events_evtype == 0] += 1
     
     # Remember that for the BEE-only acquisitions we do not have headers
     # If we have GPS then we will add the offset needed to align to MET
     # If we have a standard acquisition without GPS the ABT will be a mostly random value, so we zero-align too
     # so all times are zero-aligned (i.e., assume time in the data starts at 0)
     
-    # Zero-align event time (reset the clock!)
-    # All event times in the acquisition will now start from zero
-    mask_nonzero_floor = np.floor(events_time) != 0
-    events_time[mask_nonzero_floor] = events_time[mask_nonzero_floor] - np.floor(np.min(events_time[np.floor(events_time) > 0])) + 1
-    
+    # # Zero-align event time (reset the clock!)
+    # # All event times in the acquisition will now start from zero
+    # mask_nonzero_floor = np.floor(events_time) != 0
+    # events_time[mask_nonzero_floor] = events_time[mask_nonzero_floor] - np.floor(np.min(events_time[np.floor(events_time) > 0])) + 1
+    events_time = events_time - np.floor(events_time[0])
+        
     if write_packets_extension and gps_ok:
         # Calculate GPS time for the first header
         # gps_offset is the receiver clock offset
@@ -1074,17 +1087,13 @@ def writeFITS_LV0d5(packets_readout, outputfilename, write_packets_extension=Tru
         # week_num is the number of weeks since 1980-01-06 00:00:00 UTC
         # week_sec is the number of seconds in that week
         gps_time_ref = -gps_offset[0]+utc_offset[0]+ week_sec[0] + week_num[0]*7*86400
-        # print("gps_time_ref", gps_time_ref)
-        # print(gps_offset[0], utc_offset[0], week_sec[0], week_num[0])
         # Convert in MET: the GPS time at MET reference time is 1325030381.0 
         met_offset = gps_time_ref - 1325030381.0 
-        print()
-        print("MET of the observation start", met_offset)
     else:
         met_offset = 0
     # Add to events_time
     events_time += met_offset
-    
+        
     # Extensions
     if write_packets_extension:
         #sel_single_pkt = np.array([np.where(packetID == x)[0][0] for x in set(packetID)])
@@ -1329,7 +1338,7 @@ def writeFITS_LV0(packets_readout, outputfilename, write_packets_extension=True,
     events_obts         = []
     events_obtns        = []
     events_time_mark    = []
-    events_time         = []
+    # events_time         = []
     events_quadid       = []
     events_nmult        = []
     events_channel      = []
@@ -1426,9 +1435,9 @@ def writeFITS_LV0(packets_readout, outputfilename, write_packets_extension=True,
                             # obt_nsec_difference[header.ASIC_ID] = 9999999 - header.BEE_HK["ABT_CNT"]
                             # obt_read_from_abtEvt_previous[header.ASIC_ID] = header.BEE_HK["ABT_OBT"]
                             # obt_nsec_difference_previous[header.ASIC_ID] = 9999999 - header.BEE_HK["ABT_CNT"]
-                            obt_read_from_abtEvt           = np.ones(4) * header.BEE_HK["ABT_OBT"] + 1
+                            obt_read_from_abtEvt           = np.ones(4) * header.BEE_HK["ABT_OBT"] #+ 1
                             obt_nsec_difference            = np.ones(4) * (9999999 - header.BEE_HK["ABT_CNT"]) 
-                            obt_read_from_abtEvt_previous  = np.ones(4) * header.BEE_HK["ABT_OBT"] + 1
+                            obt_read_from_abtEvt_previous  = np.ones(4) * header.BEE_HK["ABT_OBT"] #+ 1
                             obt_nsec_difference_previous   = np.ones(4) * (9999999 - header.BEE_HK["ABT_CNT"])
                             # print(obt_read_from_abtEvt)
                             # print(obt_nsec_difference)
@@ -1442,7 +1451,7 @@ def writeFITS_LV0(packets_readout, outputfilename, write_packets_extension=True,
                             obt_nsec_difference_previous   = np.zeros(4)
 
 
-                for m, event in enumerate(data):                
+                for m, event in enumerate(data):
                     # Initialise arrays
                     mult = event.multiplicity
                     # Discard rejected events
@@ -1451,7 +1460,8 @@ def writeFITS_LV0(packets_readout, outputfilename, write_packets_extension=True,
                         pixel_event_sddid     = []
                         pixel_event_adc       = []
 
-                        asicid = m
+                        # The k-th buffer is the same as asicID
+                        asicid = k
                         isThereAnABT = False
                         for n, entry in enumerate(event.pixelEvents):      
                             if entry.evtype == 0:                         
@@ -1495,9 +1505,9 @@ def writeFITS_LV0(packets_readout, outputfilename, write_packets_extension=True,
                         events_obtns.append(obt_nsec_difference_previous[asicid])
                         events_time_mark.append(event.time_mark)
             
-                        time_of_event = (event.time_mark - obt_nsec_difference_previous[asicid])*1e-7 \
-                                        + obt_read_from_abtEvt_previous[asicid]
-                        events_time.append(time_of_event)
+                        # time_of_event = (event.time_mark - obt_nsec_difference_previous[asicid])*1e-7 \
+                        #                 + obt_read_from_abtEvt_previous[asicid]
+                        # events_time.append(time_of_event)
 
                         events_quadid.append(asicid)
                         if ORTrigger:
@@ -1521,7 +1531,7 @@ def writeFITS_LV0(packets_readout, outputfilename, write_packets_extension=True,
                             events_obts.append(abt_event_obts)
                             events_obtns.append(abt_event_obtns)
                             events_time_mark.append(abt_event_time_mark)
-                            events_time.append(0)
+                            # events_time.append(0)
                             events_quadid.append(abt_event_quadid)
                             events_nmult.append(abt_event_nmult)
                             events_channel.append(abt_event_channel)
@@ -1550,7 +1560,18 @@ def writeFITS_LV0(packets_readout, outputfilename, write_packets_extension=True,
             events_adc[i][j] -= 32768
 
 
-    events_time = np.array(events_time)
+    events_time_mark = np.array(events_time_mark)
+    events_obts      = np.array(events_obts)
+    events_obtns     = np.array(events_obtns)
+    events_evtype    = np.array(events_evtype)
+    
+    # Event time array (aligned to OBT)
+    events_time = (events_time_mark - events_obtns)*1e-7 + events_obts
+    # Correct time value for ABT events
+    events_time[events_evtype == 0] += 1
+    
+    
+    
     # if write_packets_extension:
     #     print("*** TIME DEBUG: First obt_s value in header", obt_s[0])
     # print("*** TIME DEBUG: First events_time value", events_time[0])
@@ -1561,11 +1582,12 @@ def writeFITS_LV0(packets_readout, outputfilename, write_packets_extension=True,
     # If we have a standard acquisition without GPS the ABT will be a mostly random value, so we zero-align too
     # so all times are zero-aligned (i.e., assume time in the data starts at 0)
     
-    # Zero-align event time (reset the clock!)
-    # All event times in the acquisition will now start from zero
-    mask_nonzero_floor = np.floor(events_time) != 0
-    events_time[mask_nonzero_floor] = events_time[mask_nonzero_floor] - np.floor(np.min(events_time[np.floor(events_time) > 0])) + 1
-    
+    # # Zero-align event time (reset the clock!)
+    # # All event times in the acquisition will now start from zero
+    # mask_nonzero_floor = np.floor(events_time) != 0
+    # events_time[mask_nonzero_floor] = events_time[mask_nonzero_floor] - np.floor(np.min(events_time[np.floor(events_time) > 0])) + 1
+    events_time = events_time - np.floor(events_time[0])
+        
     if write_packets_extension and gps_ok:
         # Calculate GPS time for the first header
         # gps_offset is the receiver clock offset
@@ -1579,19 +1601,24 @@ def writeFITS_LV0(packets_readout, outputfilename, write_packets_extension=True,
         met_offset = 0
     # Add to events_time
     events_time += met_offset
-    
-    exposure = np.max(events_time)-np.min(events_time)
-    
+        
+     
     mask_fake_events = np.logical_or(np.array(events_nmult) > 0, np.array(events_evtype) == 0)
+    #mask_fake_events = np.arange(len(events_nmult))
+    # Get the minimum and maximum time in the (pure photon) event list
+    tstart = np.min(np.array(events_time)[mask_fake_events][np.array(events_evtype)[mask_fake_events] > 0])
+    tstop  = np.max(np.array(events_time)[mask_fake_events][np.array(events_evtype)[mask_fake_events] > 0])
     
-    tref = Time(59580+0.00080074074, format='mjd')
-    tstop = Time(59580+0.00080074074+exposure/86400, format='mjd')
-    if write_packets_extension and gps_ok:
-        start_date = Time(gps_time_ref, format='gps')
-        stop_date = Time(gps_time_ref+exposure, format='gps')
-    else:
-        start_date = tref
-        stop_date = tstop
+    print("TSTART", tstart, "skipping ABT events")
+    print("TSTOP", tstop,  "skipping ABT events")
+    
+    exposure = tstop - tstart
+    
+    # MET reference time in MJD
+    mjdref = 59580+0.00080074074
+    
+    start_date = Time(mjdref + tstart/86400., format='mjd')
+    stop_date  = Time(mjdref + tstop/86400.,  format='mjd')
     print()
     print("Observation start:\t", start_date.iso)
     print("Observation stop:\t", stop_date.iso)
@@ -1720,11 +1747,11 @@ def writeFITS_LV0(packets_readout, outputfilename, write_packets_extension=True,
                                               pyfits.Column(name='START',
                                                             format='1D',
                                                             unit='s',
-                                                            array=np.array([0.])),
+                                                            array=np.array([tstart])),
                                               pyfits.Column(name='STOP',
                                                             format='1D',
                                                             unit='s',
-                                                            array=np.array([exposure])),
+                                                            array=np.array([tstop])),
                                             ])
     
     rejhdu = pyfits.BinTableHDU.from_columns([
@@ -1771,8 +1798,8 @@ def writeFITS_LV0(packets_readout, outputfilename, write_packets_extension=True,
     prhdu.header.set('MJDREFI', 59580,  'MJD reference day 01 Jan 2022 00:00:00 UTC')
     prhdu.header.set('MJDREFF', 0.00080074074,  'MJD reference (fraction part: 32.184 secs + 37')
     prhdu.header.set('CLOCKAPP', False,  'Set to TRUE if correction has been applied to t')
-    prhdu.header.set('TSTART', np.min(events_time),  'Start: Elapsed secs since HERMES epoch')
-    prhdu.header.set('TSTOP', np.max(events_time),  'Stop: Elapsed secs since HERMES epoch')
+    prhdu.header.set('TSTART', tstart,  'Start: Elapsed secs since HERMES epoch')
+    prhdu.header.set('TSTOP', tstop,  'Stop: Elapsed secs since HERMES epoch')
     prhdu.header.set('TELAPSE', exposure,  'TSTOP-TSTART')
     prhdu.header.set('ONTIME', exposure,  'Sum of GTIs')
     prhdu.header.set('EXPOSURE', exposure,  'Exposure time')
@@ -1793,8 +1820,8 @@ def writeFITS_LV0(packets_readout, outputfilename, write_packets_extension=True,
         pkthdu.header.set('MJDREFF', 0.00080074074,  'MJD reference (fraction part: 32.184 secs + 37')
         pkthdu.header.set('CLOCKAPP', False,  'Set to TRUE if correction has been applied to t')
         pkthdu.header.set('EXPOSURE', exposure,  'Exposure time')
-        pkthdu.header.set('TSTART', np.min(events_time),  'Start: Elapsed secs since HERMES epoch')
-        pkthdu.header.set('TSTOP', np.max(events_time),  'Stop: Elapsed secs since HERMES epoch')
+        pkthdu.header.set('TSTART', tstart,  'Start: Elapsed secs since HERMES epoch')
+        pkthdu.header.set('TSTOP', tstop,  'Stop: Elapsed secs since HERMES epoch')
         pkthdu.header.set('TELAPSE', exposure,  'TSTOP-TSTART')
         pkthdu.header.set('ONTIME', exposure,  'Sum of GTIs')
         pkthdu.header.set('EXPOSURE', exposure,  'Exposure time')
@@ -1812,8 +1839,8 @@ def writeFITS_LV0(packets_readout, outputfilename, write_packets_extension=True,
     evthdu.header.set('MJDREFI', 59580,  'MJD reference day 01 Jan 2022 00:00:00 UTC')
     evthdu.header.set('MJDREFF', 0.00080074074,  'MJD reference (fraction part: 32.184 secs + 37')
     evthdu.header.set('CLOCKAPP', False,  'Set to TRUE if correction has been applied to t')
-    evthdu.header.set('TSTART', np.min(events_time),  'Start: Elapsed secs since HERMES epoch')
-    evthdu.header.set('TSTOP', np.max(events_time),  'Stop: Elapsed secs since HERMES epoch')
+    evthdu.header.set('TSTART', tstart,  'Start: Elapsed secs since HERMES epoch')
+    evthdu.header.set('TSTOP', tstop,  'Stop: Elapsed secs since HERMES epoch')
     evthdu.header.set('TELAPSE', exposure,  'TSTOP-TSTART')
     evthdu.header.set('ONTIME', exposure,  'Sum of GTIs')
     evthdu.header.set('EXPOSURE', exposure,  'Exposure time')
@@ -1829,8 +1856,8 @@ def writeFITS_LV0(packets_readout, outputfilename, write_packets_extension=True,
     gtihdu.header.set('MJDREFI', 59580,  'MJD reference day 01 Jan 2022 00:00:00 UTC')
     gtihdu.header.set('MJDREFF', 0.00080074074,  'MJD reference (fraction part: 32.184 secs + 37')
     gtihdu.header.set('CLOCKAPP', False,  'Set to TRUE if correction has been applied to t')
-    gtihdu.header.set('TSTART', np.min(events_time),  'Start: Elapsed secs since HERMES epoch')
-    gtihdu.header.set('TSTOP', np.max(events_time),  'Stop: Elapsed secs since HERMES epoch')
+    gtihdu.header.set('TSTART', tstart,  'Start: Elapsed secs since HERMES epoch')
+    gtihdu.header.set('TSTOP', tstop,  'Stop: Elapsed secs since HERMES epoch')
     gtihdu.header.set('TELAPSE', exposure,  'TSTOP-TSTART')
     gtihdu.header.set('ONTIME', exposure,  'Sum of GTIs')
     gtihdu.header.set('EXPOSURE', exposure,  'Exposure time')
@@ -1852,8 +1879,8 @@ def writeFITS_LV0(packets_readout, outputfilename, write_packets_extension=True,
         rejhdu.header.set('MJDREFI', 59580,  'MJD reference day 01 Jan 2022 00:00:00 UTC')
         rejhdu.header.set('MJDREFF', 0.00080074074,  'MJD reference (fraction part: 32.184 secs + 37')
         rejhdu.header.set('CLOCKAPP', False,  'Set to TRUE if correction has been applied to t')
-        rejhdu.header.set('TSTART', np.min(events_time),  'Start: Elapsed secs since HERMES epoch')
-        rejhdu.header.set('TSTOP', np.max(events_time),  'Stop: Elapsed secs since HERMES epoch')
+        rejdu.header.set('TSTART', tstart,  'Start: Elapsed secs since HERMES epoch')
+        rejdu.header.set('TSTOP', tstop,  'Stop: Elapsed secs since HERMES epoch')
         rejhdu.header.set('TELAPSE', exposure,  'TSTOP-TSTART')
         rejhdu.header.set('ONTIME', exposure,  'Sum of GTIs')
         rejhdu.header.set('EXPOSURE', exposure,  'Exposure time')
@@ -1872,7 +1899,8 @@ def writeFITS_LV0(packets_readout, outputfilename, write_packets_extension=True,
             hdulist = pyfits.HDUList([prhdu, evthdu, gtihdu])
             
     hdulist.writeto(outputfilename, overwrite=True, checksum=True)
-    return start_date, stop_date
+    
+    return tstart, tstop
 
 
 def writeFITS_HK(packets_readout, outputfilename, gps_ok=False, fm="FM2", obsdates=None):
@@ -2083,19 +2111,19 @@ def writeFITS_HK(packets_readout, outputfilename, gps_ok=False, fm="FM2", obsdat
     # "Null" primary array
     prhdu = pyfits.PrimaryHDU()
     
+    # MET reference time in MJD
+    mjdref = 59580+0.00080074074
+    
+    
     if obsdates is None:
-        if gps_ok:
-            start_date = Time(np.min(obt_s), format='gps')
-            stop_date = Time(np.min(obt_s)+exposure, format='gps')
-        else:
-            start_date = Time(59580+0.00080074074, format='mjd')
-            stop_date = Time(59580+0.00080074074+exposure/86400, format='mjd')
+        tstart, tstop = np.min(obt_s), np.max(obt_s)
     else:
-        start_date, stop_date = obsdates
-    tstart = (start_date.mjd - (59580+0.00080074074))*86400
-    tstop = (stop_date.mjd - (59580+0.00080074074))*86400
-        
-    exposure = tstop-tstart
+        tstart, tstop = obsdates
+    print("Got this tstart:", tstart, "and this tstop:", tstop)
+    start_date = Time(mjdref + tstart/86400., format='mjd')
+    stop_date  = Time(mjdref + tstop/86400.,  format='mjd')
+    
+    exposure = stop_date.gps - start_date.gps
     
     prhdu.header.set('TELESCOP', 'HERMES',  'Telescope name')
     prhdu.header.set('INSTRUME', fm,  'Instrument name')
